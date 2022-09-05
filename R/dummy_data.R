@@ -66,7 +66,7 @@ ppt_state <- c('Washington',
                'Pennsylvania',
                'California',
                'California',
-               'Massacheusetts',
+               'Massachusetts',
                'Washington',
                'Atol')
 
