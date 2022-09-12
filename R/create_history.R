@@ -32,20 +32,20 @@ address_data <- dedup_addresses(address_data)
 # Set min and max dates for first and last addresses
 address_data <- set_beginning_end(address_data)
 
-# Backfill Fill Gaps
+# Backfill fill missing gaps
 address_data <- fill_backward(address_data)
 
-# Forward Fill Gaps
+# Forward fill missing gaps
 address_data <- fill_forward(address_data)
 
+# Fill blocks of missing data
+address_data <- fill_block(address_data)
 
+# Remove potential date overlap
+address_data <- remove_overlap(address_data)
 
-
-
-
-
-
-
+# Fill date gaps if wanted
+address_data <- fill_dates(address_data)
 
 
 
