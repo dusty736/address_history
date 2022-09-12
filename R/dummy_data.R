@@ -8,7 +8,7 @@
 library(tidyverse)
 
 ################################################################################
-# Create Dummy Set 1 -----------------------------------------------------------
+# Create Dummy Set -----------------------------------------------------------
 ################################################################################
 
 # Dummy set 1 will consist of:
@@ -66,7 +66,7 @@ ppt_state <- c('Washington',
                'Pennsylvania',
                'California',
                'California',
-               'Massacheusetts',
+               'Massachusetts',
                'Washington',
                'Atol')
 
@@ -87,18 +87,20 @@ final_city <- c()
 final_zip <- c()
 final_state <- c()
 
+for (i in number_of_addresses) {
+  final_street <- c(final_street, ppt_street[i])
+  final_city <- c(final_city, ppt_city[i])
+  final_zip <- c(final_zip, ppt_zip[i])
+  final_state <- c(final_state, ppt_state[i])
+}
+
 for (i in 1:length(address_counts)) {
   n_addr <- address_counts[i] # Select how many times to repeat the address
-  
   final_id <- c(final_id, rep(ppt_id[i], n_addr))
-  final_street <- c(final_street, rep(ppt_street[i], n_addr))
-  final_city <- c(final_city, rep(ppt_city[i], n_addr))
-  final_zip <- c(final_zip, rep(ppt_zip[i], n_addr))
-  final_state <- c(final_state, rep(ppt_state[i], n_addr))
 }
 
 address_df <- data.frame(ppt_id = final_id,
-                            street = final_street,
+                            address = final_street,
                             city = final_city,
                             zip = final_zip,
                             state = final_state)
@@ -123,7 +125,7 @@ start_dates <- c('1995-03-15', # 1
                  '2021-09-01',
                  '2021-10-06',
                  '1996-03-15', # 7
-                 '2002-08-22',
+                 '',
                  '',
                  '',
                  '2015-04-11',
@@ -151,7 +153,7 @@ end_dates <- c('2003-06-15', # 1
                '',
                '2022-01-17',
                '2002-08-21', # 7
-               '2008-07-25',
+               '',
                '',
                '',
                '2022-01-17',
@@ -163,7 +165,8 @@ end_dates <- c('2003-06-15', # 1
 # Add on dates
 address_df <- address_df %>% 
    mutate(start_date = as.Date(start_dates, format="%Y-%m-%d"),
-          end_date = as.Date(end_dates, format="%Y-%m-%d"))
+          end_date = as.Date(end_dates, format="%Y-%m-%d")) %>% 
+  arrange(ppt_id, start_date)
 
 # create data with just dates and months
 alternative_address_df <- address_df %>% 
@@ -172,9 +175,6 @@ alternative_address_df <- address_df %>%
          end_month = lubridate::month(end_date),
          end_year = lubridate::year(end_date)) %>% 
   select(-start_date, -end_date)
-
-# Tests
-stopifnot(sum(address_df$end_date < address_df$start_date))
 
 # Create data directory
 dir.create(file.path("./data"), showWarnings = FALSE)
