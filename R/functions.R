@@ -290,48 +290,141 @@ fill_forward <- function(df) {
   return(df)
 }
 
-create_history <- function(df, min_date = "1960-01-01", max_date = "9999-12-31") {
-  
+
+#' Title
+#'
+#' @param df 
+#' @param max_date 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+fill_block <- function(df, max_date="9999-12-31") {
   df <- df %>% 
-    # Set Date Type
-    mutate(start_date = as.Date(start_date, origin = "1970-01-01"),
-           end_date = as.Date(end_date, origin = "1970-01-01"))
-    
+    dplyr::select(ppt_id, address, city, state, zip, start_date, end_date) %>% 
+    mutate(start_date = as.Date(ifelse(is.infinite(start_date), as.Date(NA), start_date),
+                                origin="1970-01-01"),
+           end_date = as.Date(ifelse(is.infinite(end_date), as.Date(NA), end_date),
+                              origin="1970-01-01")) %>% 
+    mutate(na_count = is.na(start_date) + is.na(end_date),
+           is_gap = is.na(start_date) | is.na(end_date)) %>% 
+    group_by(ppt_id, grp = with(rle(is_gap), rep(seq_along(lengths), lengths))) %>%
+    mutate(counter = seq_along(grp),
+           max_counter = max(seq_along(grp)),
+           min_date = min(start_date, na.rm=TRUE),
+           max_date = as.Date(max(ifelse(end_date == max_date, Sys.Date(), end_date),
+                                  na.rm=TRUE),
+                              origin="1970-01-01")) %>%
+    ungroup() %>%
+    dplyr::select(-grp) %>% 
+    mutate(date_sum = as.numeric(min_date) + as.numeric(max_date),
+           date_diff = as.numeric(max_date) - as.numeric(min_date)) %>% 
+    # Fill small gaps
+    mutate(end_date = as.Date(ifelse(is_gap == TRUE & max_counter == 2 & is.na(end_date),
+                                     date_sum / 2,
+                                     end_date),
+                              origin='1970-01-01'),
+           start_date = as.Date(ifelse(is_gap == TRUE & max_counter == 2 & is.na(start_date),
+                                       date_sum / 2 + 1,
+                                       start_date),
+                                origin='1970-01-01')) %>% 
+    # big gaps
+    mutate(start_date = as.Date(ifelse(na_count == 2,
+                                       min_date + (counter * date_diff / max_counter),
+                                       start_date),
+                                origin="1970-01-01"),
+           end_date = as.Date(ifelse(na_count == 2,
+                                     min_date + ((counter + 1) * date_diff / max_counter),
+                                     end_date),
+                              origin="1970-01-01"))
   
+  # Backfill Fill Gaps
+  df <- fill_backward(df)
+  
+  # Forward Fill Gaps
+  df <- fill_forward(df)
+  
+  # Select Columns
+  df <- df %>% 
+    dplyr::select(ppt_id,
+                  address,
+                  city,
+                  state,
+                  zip,
+                  start_date,
+                  end_date)
+  
+  return(df)
 }
 
 
-test <- address_data %>% 
-  mutate(start_date = as.Date(ifelse(is.infinite(start_date), as.Date(NA), start_date),
+#' Title
+#'
+#' @param df 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+remove_overlap <- function(df) {
+  df <- df %>% 
+    mutate(row_number = row_number(),
+           lead_ppt = lead(ppt_id),
+           lead_start_date = lead(start_date)) %>% 
+    mutate(end_date = as.Date(ifelse(end_date == lead_start_date & row_number != dim(address_data)[1],
+                                     as.numeric(end_date - 1),
+                                     end_date),
+                              origin="1970-01-01")) %>% 
+    dplyr::select(-row_number, -lead_ppt, -lead_start_date)
+  
+  return(df)
+}
+
+
+#' Title
+#'
+#' @param df 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+fill_dates <- function(df) {
+  df <- df %>% 
+    mutate(row_number = row_number(),
+           lead_ppt = lead(ppt_id),
+           lead_start_date = lead(start_date)) %>% 
+    mutate(forward_diff = ifelse(row_number != dim(df)[1] & ppt_id == lead_ppt & as.numeric(lead_start_date) - as.numeric(end_date) > 1,
+                                 as.numeric(lead_start_date) - as.numeric(end_date),
+                                 NA)) %>% 
+    mutate(midpoint = as.Date(ifelse(!is.na(forward_diff),
+                                     (as.numeric(end_date) + as.numeric(lead_start_date)) / 2,
+                                     NA),
+                              origin="1970-01-01")) %>% 
+    mutate(lagged_midpoint = lag(midpoint)) %>% 
+    mutate(end_date = as.Date(ifelse(!is.na(midpoint),
+                                     midpoint,
+                                     end_date),
                               origin="1970-01-01"),
-         end_date = as.Date(ifelse(is.infinite(end_date), as.Date(NA), end_date),
-                            origin="1970-01-01")) %>% 
-  mutate(na_count = is.na(start_date) + is.na(end_date))
-
-
-
-
-
-
-  mutate(end_date = as.Date(ifelse(ppt_id == lead_ppt & row != nrow(test) & !is.na(lead_start_date), 
-                           (as.numeric(end_date) + as.numeric(lead_start_date)) / 2, 
-                           end_date),
-                           origin = "1970-01-01"),
-         start_date = as.Date(ifelse(ppt_id == lagged_ppt & row != 1 & !is.na(lagged_end_date), 
-                                           (as.numeric(start_date) + as.numeric(lagged_end_date)) / 2 + 1, 
-                                           start_date),
-                                    origin = "1970-01-01")) %>% 
-  mutate(Counter = sequence(rle(as.character(test$ppt_id))$lengths)) %>% 
-  group_by(ppt_id) %>% 
-  mutate(appearance_count = n()) %>% 
-  ungroup() %>% 
-  mutate(end_date = as.Date(ifelse(Counter == appearance_count & is.na(end_date),
-                                   Sys.Date(),
-                                   end_date),
-                            origin = "1970-01-01"))
-
-
-         
+           start_date = as.Date(ifelse(!is.na(lagged_midpoint),
+                                       lagged_midpoint + 1,
+                                       start_date),
+                                origin="1970-01-01")) %>% 
+    mutate(lead_start_date = lead(start_date)) %>% 
+    mutate(date_diff = ifelse(ppt_id == lead_ppt,
+                              as.numeric(lead_start_date) - as.numeric(end_date),
+                              NA)) %>% 
+    dplyr::select(ppt_id,
+                  address,
+                  city,
+                  state,
+                  zip,
+                  start_date,
+                  end_date)
+  
+  return(df)
+}
 
 
 
